@@ -32,43 +32,38 @@ def weights_init(m):
         nn.init.normal_(m.weight.data, 1.0, 0.02)
         nn.init.constant_(m.bias.data, 0)
 
-def cbatch(imgs,lbls, typ, l, sf, bs):
-    if typ == 'self':
-        nlabs = len(lbls[0])
-        data = np.empty([bs, 3, l, l, l])
-        labelset = np.empty([bs, nlabs * 2, 1, 1, 1])
-        p = 0
-        nimgs = len(imgs)
-        print('number of training imgs: ', nimgs, ' number of labels: ', nlabs)
-        for imgpth,lbl in zip(imgs,lbls):
-            img = np.load(imgpth)
-            if len(img.shape) > 3:
-                img = img[:, :, :, 0]
-            img = img[::sf, ::sf, ::sf]
-            x_max, y_max, z_max = img.shape[:]
-            phases = np.unique(img)
-            for i in range((bs//nimgs)):
-                for j,lb in enumerate(lbl):
-                    labelset[p, j] = lb
-                    labelset[p, j+nlabs] = 1 -lb
-                    if i == 0: print(str(lb) +'\n' + str(lbl) + '\n' + imgpth)
-                x = np.random.randint(1, x_max - l - 1)
-                y = np.random.randint(1, y_max - l - 1)
-                z = np.random.randint(1, z_max - l - 1)
-                # create one channel per phase for one hot encoding
-                for cnt, phs in enumerate(phases):
-                     img1 = np.zeros([l, l, l])
-                     img1[img[x:x + l, y:y + l, z:z+l] == phs] = 1
-                     data[p, cnt] = img1
-                p+=1
-                if i%5000==0:
-                    plt.imshow(data[p-1,0, 0] + 2*data[p-1,1, 0])
-                    plt.pause(1)
-                    plt.close('all')
-        data = torch.FloatTensor(data)
-        labelset = torch.FloatTensor(labelset)
-        dataset = torch.utils.data.TensorDataset(data,labelset)
-        return dataset
+def pre_proc(paths, sf):
+    img_list = []
+    for img in paths:
+        img = np.load(img)[::sf,::sf,::sf]
+        if len(img.shape) > 3:
+            img = img[:, :, :, 0]
+        h ,w, d = img.shape
+        phases = np.unique(img)
+        oh_img = torch.zeros([len(phases), h, w, d])
+        for ch, ph in enumerate(phases):
+            oh_img[ch][img==ph] = 1
+        img_list.append(oh_img)
+    return img_list
+
+def batch(imgs,lbls, l, bs, device):
+    nlabs = len(lbls[0])
+    data = np.empty([bs, 3, l, l, l])
+    labelset = np.zeros([bs, nlabs * 2, 1, 1, 1])
+    p = 0
+    nimgs = len(imgs)
+    for img,lbl in zip(imgs,lbls):
+        x_max, y_max, z_max = img.shape[1:]
+        for i in range((bs//nimgs)):
+            for j,lb in enumerate(lbl):
+                labelset[p, j] = lb
+                labelset[p, j+nlabs] = 1 -lb
+            x = np.random.randint(1, x_max - l - 1)
+            y = np.random.randint(1, y_max - l - 1)
+            z = np.random.randint(1, z_max - l - 1)
+            data[p] = img[:, x:x + l, y:y + l, z:z+l]
+            p+=1
+    return torch.FloatTensor(data).to(device), torch.FloatTensor(labelset).to(device)
 
 def calc_gradient_penalty(netD, real_data, fake_data, batch_size, l, device, gp_lambda,nc):
     alpha = torch.rand(batch_size, 1)
@@ -76,8 +71,8 @@ def calc_gradient_penalty(netD, real_data, fake_data, batch_size, l, device, gp_
     alpha = alpha.view(batch_size, nc, l, l)
     alpha = alpha.to(device)
 
-    fake_data2 = fake_data.view(batch_size, nc, l, l)
-    interpolates = alpha * real_data.detach() + ((1 - alpha) * fake_data2.detach())
+    # fake_data2 = fake_data.view(batch_size, nc, l, l)
+    interpolates = alpha * real_data.detach() + ((1 - alpha) * fake_data.detach())
 
     interpolates = interpolates.to(device)
     interpolates.requires_grad_(True)

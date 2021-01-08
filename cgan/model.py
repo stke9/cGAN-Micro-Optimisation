@@ -1,21 +1,19 @@
-from cgan import preprocessing, util
+from cgan.util import *
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
-import numpy as np
 import time
-import tifffile
 import torch
 import torch.nn as nn
 
 def conditional_trainer(pth, imtype, datatype, real_data, labels, Disc, Gen, isotropic, nc, l, nz, sf):
     print('Loading Dataset...')
-    datasetxyz = preprocessing.cbatch(real_data,labels, datatype, l, sf,TI=True)
     ## Constants for NNs
     # matplotlib.use('Agg')
     ngpu = 1
     nlabels = len(labels[0])
-    batch_size = 32
+    batch_size = 16
     num_epochs = 30
+    iters = 1000
     lrg = 0.0002
     lr = 0.0001
     beta1 = 0
@@ -24,14 +22,10 @@ def conditional_trainer(pth, imtype, datatype, real_data, labels, Disc, Gen, iso
     critic_iters = 5
     cudnn.benchmark = True
     workers = 0
-
-    ##Dataloaders for each orientation
     device = torch.device("cuda:0" if(torch.cuda.is_available() and ngpu > 0) else "cpu")
     print(device, " will be used.\n")
-    # device = torch.device('cpu')
 
-    dataloader = torch.utils.data.DataLoader(datasetxyz, batch_size=batch_size,
-                                              shuffle=True, num_workers=workers)
+    training_imgs = pre_proc(real_data, sf)
 
     # Create the Genetator network
     netG = Gen().to(device)
@@ -42,7 +36,7 @@ def conditional_trainer(pth, imtype, datatype, real_data, labels, Disc, Gen, iso
     # Define 1 discriminator and optimizer for each plane in each dimension
 
     netD = Disc()
-    netD = (nn.DataParallel(netD, list(range(ngpu)))).to(device)
+    netD = nn.DataParallel(netD, list(range(ngpu))).to(device)
     optD = optim.Adam(netD.parameters(), lr=lr, betas=(beta1, beta2))
 
     disc_real_log = []
@@ -55,7 +49,8 @@ def conditional_trainer(pth, imtype, datatype, real_data, labels, Disc, Gen, iso
     start = time.time()
     for epoch in range(num_epochs):
         # For each batch in the dataloader
-        for i, (data,lbl) in enumerate(dataloader):
+        for i in range(iters):
+            real_data, lbl = batch(training_imgs, labels, l, batch_size, device)
             netD.zero_grad()
             G_labels = lbl.repeat(1, 1, 4, 4, 4).to(device)
             D_labels = lbl.repeat(1, 1, l, l, l)
@@ -65,9 +60,8 @@ def conditional_trainer(pth, imtype, datatype, real_data, labels, Disc, Gen, iso
             fake_data = netG(noise, G_labels).detach()
             out_fake = netD(fake_data, D_labels).mean()
 
-            real_data = data.to(device)
             out_real = netD(real_data, D_labels).view(-1).mean()
-            gradient_penalty = util.cond_calc_gradient_penalty(netD, real_data, fake_data,batch_size,
+            gradient_penalty = cond_calc_gradient_penalty(netD, real_data, fake_data,batch_size,
                                                                l,device, Lambda, nc, D_labels)
             disc_cost = out_fake - out_real + gradient_penalty
             disc_cost.backward()
@@ -103,16 +97,15 @@ def conditional_trainer(pth, imtype, datatype, real_data, labels, Disc, Gen, iso
                         lbl_str += str(tst_lbls[lb])
                     img = netG(noise, lbl.type(torch.FloatTensor).cuda())
 
-                    util.test_plotter(img, 3, imtype, pth+lbl_str)
+                    test_plotter(img, 3, imtype, pth+lbl_str)
 
                 ###Print progress
                 ## calc ETA
-                steps = len(dataloader)
-                util.calc_eta(steps, time.time(), start, i, epoch, num_epochs)
+                calc_eta(iters, time.time(), start, i, epoch, num_epochs)
                 ###save example slices
                 # plotting graphs
-                util.graph_plot([disc_real_log, disc_fake_log], ['real', 'perp'], pth, 'LossGraph')
-                util.graph_plot([Wass_log], ['Wass Distance'], pth, 'WassGraph')
-                util.graph_plot([gp_log], ['Gradient Penalty'], pth, 'GpGraph')
+                graph_plot([disc_real_log, disc_fake_log], ['real', 'perp'], pth, 'LossGraph')
+                graph_plot([Wass_log], ['Wass Distance'], pth, 'WassGraph')
+                graph_plot([gp_log], ['Gradient Penalty'], pth, 'GpGraph')
                 fin_save = time.time() - start_save
                 # print('save: ', fin_save)

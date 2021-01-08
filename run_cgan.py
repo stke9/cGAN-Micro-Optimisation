@@ -5,7 +5,7 @@ from cgan import *
 
 ## Make directory
 
-Project_name = 'NMC_Alej_3D_tc'
+Project_name = 'NMC_Alej_3D_restc'
 Project_dir = 'trained_generators/NMC_Alej/'
 
 ## Data Processing
@@ -28,7 +28,7 @@ for lab, NMC in zip(['94','95', '96'],[0, 0.5, 1]):
     labels.append([NMC])
 
 isotropic = True
-Training = True # Run with False to show an image during training
+Training = False # Run with False to show an image during training
 Project_path = mkdr(Project_name, Project_dir, Training)
 
 # Network Architectures
@@ -36,12 +36,12 @@ imsize, nz,  channels, sf, lbls = 64, 8, 3, 2, len(labels[0]*2)
 lays = 5
 laysd = 5
 
-dk, gk = [4]*lays, [3]*lays
-gk[3] = 4
-ds, gs = [2]*lays, [1]*lays
+dk, gk = [4]*lays, [4]*lays
+#gk[3] = 4
+ds, gs = [2]*lays, [2]*lays
 df, gf = [channels,64,128,256,512,1], [nz,512,256,128, 64, channels]
 dp, gp = [1,1,1,1,0],[2,2,2,2,3]
-gp = [0,0,0,0,0]
+#gp = [0,0,0,0,0]
 
 # dk, gk = [4]*lays, [4]*lays
 # ds, gs = [2]*lays, [2]*lays
@@ -49,13 +49,13 @@ gp = [0,0,0,0,0]
 # dp, gp = [1,1,1,1,0],[2,2,2,2,3]
 
 ##Create Networks
-netD, netG = cgan_resize_conv_nets(Project_path, Training, lbls, dk, ds, df,dp, gk ,gs, gf, gp)
+netD, netG = cgan_resnets(Project_path, Training, lbls, dk, ds, df,dp, gk ,gs, gf, gp)
 
 if Training:
     data = conditional_trainer(Project_path, image_type, data_type, data_path, labels, netD, netG, isotropic, channels, imsize, nz, sf)
 
 else:
-    img, raw, netG = test_img_cgan(Project_path, labels, image_type, netG(), nz, show=False, lf=4)
+    img, raw, netG = test_img_cgan(Project_path, labels, image_type, netG(), nz, show=False, lf=6)
     for im in img:
         for ph in [0, 1, 2]:
             print(len(im[im == ph]) / im.size)
