@@ -48,7 +48,7 @@ def pre_proc(paths, sf):
 
 def batch(imgs,lbls, l, bs, device):
     nlabs = len(lbls[0])
-    data = np.empty([bs, 3, l, l, l])
+    data = np.empty([bs, 3, l, l])
     labelset = np.zeros([bs, nlabs * 2, 1, 1, 1])
     p = 0
     nimgs = len(imgs)
@@ -60,38 +60,15 @@ def batch(imgs,lbls, l, bs, device):
                 labelset[p, j+nlabs] = 1 -lb
             x = np.random.randint(1, x_max - l - 1)
             y = np.random.randint(1, y_max - l - 1)
-            z = np.random.randint(1, z_max - l - 1)
-            data[p] = img[:, x:x + l, y:y + l, z:z+l]
-            p+=1
+            z = np.random.randint(1, z_max-1)
+            data[p] = img[:, x:x + l, y:y + l, z]
+            p += 1
     return torch.FloatTensor(data).to(device), torch.FloatTensor(labelset).to(device)
-
-def calc_gradient_penalty(netD, real_data, fake_data, batch_size, l, device, gp_lambda,nc):
-    alpha = torch.rand(batch_size, 1)
-    alpha = alpha.expand(batch_size, int(real_data.nelement() / batch_size)).contiguous()
-    alpha = alpha.view(batch_size, nc, l, l)
-    alpha = alpha.to(device)
-
-    # fake_data2 = fake_data.view(batch_size, nc, l, l)
-    interpolates = alpha * real_data.detach() + ((1 - alpha) * fake_data.detach())
-
-    interpolates = interpolates.to(device)
-    interpolates.requires_grad_(True)
-
-    disc_interpolates = netD(interpolates)
-
-    gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
-                              grad_outputs=torch.ones(disc_interpolates.size()).to(device),
-                              create_graph=True, only_inputs=True)[0]
-
-    gradients = gradients.view(gradients.size(0), -1)
-    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * gp_lambda
-    return gradient_penalty
-
 
 def cond_calc_gradient_penalty(netD, real_data, fake_data, batch_size, l, device, gp_lambda, nc, labs):
     alpha = torch.rand(batch_size, 1)
     alpha = alpha.expand(batch_size, int(real_data.nelement() / batch_size)).contiguous()
-    alpha = alpha.view(batch_size, nc, l, l, l)
+    alpha = alpha.view(batch_size, nc, l, l)
     alpha = alpha.to(device)
 
     interpolates = alpha * real_data.detach() + ((1 - alpha) * fake_data.detach())

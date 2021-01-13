@@ -1,11 +1,11 @@
 ### Welcome to SliceGAN ###
 ####### Steve Kench #######
 
-from cgan import *
+from slicecgan import *
 
 ## Make directory
 
-Project_name = 'NMC_Alej_3D_fullres_tc'
+Project_name = 'NMC_Alej_2D_resnet_tc'
 Project_dir = 'trained_generators/NMC_Alej/'
 
 ## Data Processing
@@ -28,34 +28,28 @@ for lab, NMC in zip(['94','95', '96'],[0, 0.5, 1]):
     labels.append([NMC])
 
 isotropic = True
-Training = True # Run with False to show an image during training
+Training = 1 # Run with False to show an image during training
 Project_path = mkdr(Project_name, Project_dir, Training)
 
 # Network Architectures
 imsize, nz,  channels, sf, lbls = 64, 2, 3, 2, len(labels[0]*2)
 lays = 5
 laysd = 5
-
-dk, gk = [4]*lays, [4]*lays
-ds, gs = [2]*lays, [2]*lays
-df, gf = [channels,64,128,256,512,1], [nz,512,256,128, 64, channels]
+dk, gk = [4]*laysd, [4]*lays                                    # kernal sizes
+# gk[0]=8
+ds, gs = [2]*laysd, [2]*lays                                    # strides
+# gs[0] = 4
+df, gf = [channels,128,256,256,384,1], [nz,384,256,256, 128, channels]  # filter sizes for hidden layers
 dp, gp = [1,1,1,1,0],[2,2,2,2,3]
 
-# dk, gk = [4]*lays, [3]*lays
-# gk[3] = 4
-# ds, gs = [2]*lays, [1]*lays
-# df, gf = [channels,64,128,256,256,1], [nz,512,256,128, 64, channels]
-# dp, gp = [1,1,1,1,0], [0,0,0,0,0]
-
-
 ##Create Networks
-netD, netG = cgan_fullres_nets(Project_path, Training, lbls, dk, ds, df,dp, gk ,gs, gf, gp)
+netD, netG = slicecgan_resnets(Project_path, Training, lbls, dk, ds, df,dp, gk ,gs, gf, gp)
 
 if Training:
     data = conditional_trainer(Project_path, image_type, data_type, data_path, labels, netD, netG, isotropic, channels, imsize, nz, sf)
 
 else:
-    img, raw, netG = test_img_cgan(Project_path, labels, image_type, netG(), nz, lf=6, twoph=False)
+    img, raw, netG = test_img_cgan(Project_path, labels, image_type, netG(), nz,  lf=10, twoph=0)
     for im in img:
         for ph in [0, 1, 2]:
             print(len(im[im == ph]) / im.size)
