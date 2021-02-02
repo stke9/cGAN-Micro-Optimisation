@@ -54,6 +54,9 @@ def batch(imgs,lbls, l, bs, device):
     nimgs = len(imgs)
     for img,lbl in zip(imgs,lbls):
         x_max, y_max, z_max = img.shape[1:]
+        f = [1,2,3]
+        np.random.shuffle(f)
+        img.permute(0, f[0], f[1], f[2])
         for i in range((bs//nimgs)):
             for j,lb in enumerate(lbl):
                 labelset[p, j] = lb
@@ -164,7 +167,7 @@ def test_img(pth, imtype, netG, nz = 64, lf = 4):
     return tif,raw, netG
 
 def test_img_cgan(pth, label_list, imtype, netG, nz = 64, lf = 4, twoph = True):
-    device = torch.device("cpu")
+    device = torch.device("cuda:0")
     netG.load_state_dict(torch.load(pth + '_Gen.pt'))
     netG.to(device)
     tifs, raws = [], []

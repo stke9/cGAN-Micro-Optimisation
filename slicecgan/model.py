@@ -13,19 +13,19 @@ def conditional_trainer(pth, imtype, datatype, real_data, labels, Disc, Gen, iso
     # matplotlib.use('Agg')
     ngpu = 1
     nlabels = len(labels[0])
-    batch_size = 16
+    batch_size = 12
     D_batch_size = 12
     num_epochs = 30
     iters = 10000//batch_size
-    lrg = 0.0002
+    lrg = 0.0004
     lr = 0.0002
-    beta1 = 0
-    beta2 = 0.9
+    beta1 = 0.9
+    beta2 = 0.999
     Lambda = 10
     critic_iters = 5
     cudnn.benchmark = True
     workers = 0
-
+    lz = 4
     ##Dataloaders for each orientation
     device = torch.device("cuda:0" if(torch.cuda.is_available() and ngpu > 0) else "cpu")
     print(device, " will be used.\n")
@@ -59,12 +59,12 @@ def conditional_trainer(pth, imtype, datatype, real_data, labels, Disc, Gen, iso
         # For each batch in the dataloader
         for i in range(iters):
             real_data, lbl = batch(training_imgs, labels, l, D_batch_size, device)
-            G_labels = lbl.repeat(1, 1, 4, 4, 4).to(device)
+            G_labels = lbl.repeat(1, 1, lz, lz, lz).to(device)
             D_labels_real = lbl.repeat(1, 1, l, l, l)[:, :, 0]
             D_labels_fake = D_labels_real.repeat(1, l, 1 ,1).reshape(-1, nlabels*2, l, l)
             ### Discriminator
             ## Generate fake image batch with G
-            noise = torch.randn(D_batch_size, nz, 4, 4, 4, device=device)
+            noise = torch.randn(D_batch_size, nz, lz, lz, lz, device=device)
             fake_data = netG(noise, G_labels).detach()
             # For each dimension
             start_disc = time.time()
@@ -98,7 +98,7 @@ def conditional_trainer(pth, imtype, datatype, real_data, labels, Disc, Gen, iso
             if i % int(critic_iters) == 0:
                 netG.zero_grad()
                 errG = 0
-                noise = torch.randn(D_batch_size, nz, 4, 4, 4, device=device)
+                noise = torch.randn(D_batch_size, nz, lz, lz, lz, device=device)
                 fake = netG(noise, G_labels)
                 for dim, (netD, d1, d2, d3) in enumerate(
                         zip(netDs, [2, 3, 4], [3, 2, 2], [4, 4, 3])):
@@ -116,9 +116,9 @@ def conditional_trainer(pth, imtype, datatype, real_data, labels, Disc, Gen, iso
                 start_save = time.time()
                 torch.save(netG.state_dict(), pth + '_Gen.pt')
                 torch.save(netD.state_dict(), pth + '_Disc.pt')
-                noise = torch.randn(1, nz, 4, 4, 4, device=device)
+                noise = torch.randn(1, nz, lz, lz, lz, device=device)
                 for tst_lbls in labels:
-                    lbl = torch.zeros(1, nlabels * 2, 4, 4, 4)
+                    lbl = torch.zeros(1, nlabels * 2, lz, lz, lz)
                     lbl_str = ''
                     for lb in range(nlabels):
                         lbl[:, lb] = tst_lbls[lb]
