@@ -11,7 +11,7 @@ Project_dir = 'trained_generators/NMC_Alej/'
 ## Data Processing
 image_type = 'threephase' # threephase, twophase or colour
 
-isotropic = True
+isotropic = False
 Training = False # Run with False to show an image during training
 Project_path = mkdr(Project_name, Project_dir, Training)
 
