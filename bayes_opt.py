@@ -12,7 +12,7 @@ Project_dir = 'trained_generators/NMC_Alej/'
 image_type = 'threephase' # threephase, twophase or colour
 
 isotropic = True
-Training = False # Run with False to show an image during training
+Training = True # Run with False to show an image during training
 Project_path = mkdr(Project_name, Project_dir, Training)
 
 # Network Architecture
