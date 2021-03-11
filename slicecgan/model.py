@@ -13,10 +13,10 @@ def conditional_trainer(pth, imtype, datatype, real_data, labels, Disc, Gen, iso
     # matplotlib.use('Agg')
     ngpu = 1
     nlabels = len(labels[0])
-    batch_size = 12
-    D_batch_size = 12
-    num_epochs = 30
-    iters = 10000//batch_size
+    batch_size = 27
+    D_batch_size = 27
+    num_epochs = 100
+    iters = 30000//batch_size
     lrg = 0.0004
     lr = 0.0002
     beta1 = 0.9
@@ -25,7 +25,7 @@ def conditional_trainer(pth, imtype, datatype, real_data, labels, Disc, Gen, iso
     critic_iters = 5
     cudnn.benchmark = True
     workers = 0
-    lz = 4
+    lz = 6
     ##Dataloaders for each orientation
     device = torch.device("cuda:0" if(torch.cuda.is_available() and ngpu > 0) else "cpu")
     print(device, " will be used.\n")
@@ -117,14 +117,14 @@ def conditional_trainer(pth, imtype, datatype, real_data, labels, Disc, Gen, iso
                 torch.save(netG.state_dict(), pth + '_Gen.pt')
                 torch.save(netD.state_dict(), pth + '_Disc.pt')
                 noise = torch.randn(1, nz, lz, lz, lz, device=device)
-                for tst_lbls in labels:
+                for tst_lbls in labels[::9]:
                     lbl = torch.zeros(1, nlabels * 2, lz, lz, lz)
                     lbl_str = ''
                     for lb in range(nlabels):
                         lbl[:, lb] = tst_lbls[lb]
                         lbl[:, lb + nlabels] = 1- tst_lbls[lb]
 
-                        lbl_str += str(tst_lbls[lb])
+                        lbl_str += '_' + str(tst_lbls[lb])
                     img = netG(noise, lbl.type(torch.FloatTensor).cuda())
 
                     test_plotter(img, 3, imtype, pth+lbl_str)

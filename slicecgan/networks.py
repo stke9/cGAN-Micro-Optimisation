@@ -85,10 +85,10 @@ def slicecgan_rc_nets(pth, Training, lbls, *args):
 
         def forward(self, x, y):
             x = torch.cat([x, y], 1)
-            for lay, (conv,bn) in enumerate(zip(self.convs[:-1],self.bns[:-1])):
+            for lay, (conv, bn) in enumerate(zip(self.convs[:-1],self.bns[:-1])):
                 x = F.relu_(bn(conv(x)))
             up = nn.Upsample(size = x.shape[2]*2-2)
-            out = torch.softmax(self.rcconv(up(x)),1)
+            out = torch.softmax(self.rcconv(up(x)), 1)
             return out
 
     class DiscriminatorWGAN(nn.Module):
@@ -108,6 +108,64 @@ def slicecgan_rc_nets(pth, Training, lbls, *args):
 
 
     return DiscriminatorWGAN, GeneratorWGAN
+
+def slicecgan_rc_pc_nets(pth, Training, lbls, *args):
+    ##
+    #save params
+    params = [*args]
+
+    if Training:
+        dk, ds, df, dp, gk, gs, gf, gp = params
+        with open(pth + '_params.data', 'wb') as filehandle:
+            # store the data as binary data stream
+            pickle.dump(params, filehandle)
+    else:
+        with open(pth + '_params.data', 'rb') as filehandle:
+            # read the data as binary data stream
+            dk, ds, df, dp, gk, gs, gf, gp  = pickle.load(filehandle)
+    # else:
+    #     with open(pth + Proj + '/' + Proj + '_parameters.txt', 'w') as f:
+    #Make nets
+    class GeneratorWGAN(nn.Module):
+        def __init__(self):
+            super(GeneratorWGAN, self).__init__()
+            self.convs = nn.ModuleList()
+            self.bns = nn.ModuleList()
+            self.rcconv = nn.Conv3d(gf[-2],gf[-1],3,1,0)
+            self.pcconv = nn.Conv3d(gf[0],gf[0],3,1,0)
+
+
+            for lay, (k,s,p) in enumerate(zip(gk,gs,gp)):
+                self.convs.append(nn.ConvTranspose3d(gf[lay] if lay != 0 else gf[lay]+lbls, gf[lay+1], k, s, p, bias=False))
+                self.bns.append(nn.BatchNorm3d(gf[lay+1]))
+
+        def forward(self, x, y):
+            x = self.pcconv(x)
+            x = torch.cat([x, y[:,:,:4,:4,:4]], 1)
+            for lay, (conv, bn) in enumerate(zip(self.convs[:-1],self.bns[:-1])):
+                x = F.relu_(bn(conv(x)))
+            up = nn.Upsample(size = x.shape[2]*2-2)
+            out = torch.softmax(self.rcconv(up(x)), 1)
+            return out
+
+    class DiscriminatorWGAN(nn.Module):
+        def __init__(self):
+            super(DiscriminatorWGAN, self).__init__()
+            self.convs = nn.ModuleList()
+            for lay, (k, s, p) in enumerate(zip(dk, ds, dp)):
+                self.convs.append(nn.Conv2d(df[lay] if lay != 0 else df[lay]+lbls, df[lay + 1], k, s, p, bias=False))
+
+        def forward(self, x, y):
+            x = torch.cat([x, y], 1)
+            for lay, conv in enumerate(self.convs[:-1]):
+                x = F.relu_(conv(x))
+            x = self.convs[-1](x)
+            return x
+    print('Architect Complete...')
+
+
+    return DiscriminatorWGAN, GeneratorWGAN
+
 
 def slicecgan_resnets(pth, Training, lbls, *args):
     ##

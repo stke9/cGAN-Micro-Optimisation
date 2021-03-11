@@ -35,7 +35,8 @@ def weights_init(m):
 def pre_proc(paths, sf):
     img_list = []
     for img in paths:
-        img = np.load(img)[::sf,::sf,::sf]
+        img = tifffile.imread(img)[30:-30]
+        img = img[::sf, ::sf, ::sf]
         if len(img.shape) > 3:
             img = img[:, :, :, 0]
         h ,w, d = img.shape
@@ -52,15 +53,18 @@ def batch(imgs,lbls, l, bs, device):
     labelset = np.zeros([bs, nlabs * 2, 1, 1, 1])
     p = 0
     nimgs = len(imgs)
-    for img,lbl in zip(imgs,lbls):
+    for img,lbl in zip(imgs, lbls):
         x_max, y_max, z_max = img.shape[1:]
         f = [1,2,3]
         np.random.shuffle(f)
         img.permute(0, f[0], f[1], f[2])
+        if bs < nimgs:
+            print('ERROR batch size smaller than n imgs')
+            raise ValueError
         for i in range((bs//nimgs)):
             for j,lb in enumerate(lbl):
                 labelset[p, j] = lb
-                labelset[p, j+nlabs] = 1 -lb
+                labelset[p, j+nlabs] = 1 - lb
             x = np.random.randint(1, x_max - l - 1)
             y = np.random.randint(1, y_max - l - 1)
             z = np.random.randint(1, z_max-1)
@@ -100,7 +104,7 @@ def calc_eta(steps, time, start, i, epoch, num_epochs):
              hrs, mins))
 
 ## Plotting Utils
-def post_proc(img,imtype):
+def post_proc(img, imtype):
     try:
         img = img.detach().cpu()
     except:
@@ -108,25 +112,26 @@ def post_proc(img,imtype):
     if imtype == 'colour':
         return np.int_(255*(np.swapaxes(img[0], 0, -1)))
     if imtype == 'twophase':
-        sqrs = np.zeros(img.shape[2:])
-        p1 = np.array(img[0][0])
-        p2 = np.array(img[0][1])
+        sqrs = np.zeros_like(img)
+        sqrs = sqrs[:,0]
+        p1 = np.array(img[:, 0])
+        p2 = np.array(img[:, 1])
         sqrs[(p1 < p2)] = 1  # background, yellow
         return sqrs
     if imtype == 'threephase':
-        sqrs = np.zeros(img.shape[2:])
-        p1 = np.array(img[0][0])
-        p2 = np.array(img[0][1])
-        p3 = np.array(img[0][2])
+        sqrs = np.zeros_like(img)[:,0]
+        p1 = np.array(img[:, 0])
+        p2 = np.array(img[:, 1])
+        p3 = np.array(img[:, 2])
         sqrs[(p1 > p2) & (p1 > p3)] = 0  # background, yellow
         sqrs[(p2 > p1) & (p2 > p3)] = 1  # spheres, green
         sqrs[(p3 > p2) & (p3 > p1)] = 2  # binder, purple
         return sqrs
     if imtype == 'grayscale':
-        return 255*img[0][0]
+        return 255*img[:][0]
 
 def test_plotter(sqrs,slcs,imtype,pth):
-    sqrs = post_proc(sqrs,imtype)
+    sqrs = post_proc(sqrs,imtype)[0]
     fig, axs = plt.subplots(slcs, 3)
     if imtype == 'colour':
         for j in range(slcs):
@@ -172,24 +177,24 @@ def test_img_cgan(pth, label_list, imtype, netG, nz = 64, lf = 4, twoph = True):
     netG.to(device)
     tifs, raws = [], []
     noise = torch.randn(1, nz, lf, lf, lf, device = device)
-
+    netG.eval()
     for lbls in label_list:
         fake_labels = torch.ones([1, len(lbls) * 2, 1, 1, 1], device=device)
         for ch, lbl in enumerate(lbls):
             fake_labels[:,ch] = lbl
             fake_labels[:, ch+len(lbls)] = 1 - lbl
-            fake_labels = fake_labels.repeat(1, 1, lf,lf,lf)
-            print(fake_labels[0,:,0,0,0])
-            netG.eval()
-            raw = netG(noise, fake_labels)
-            print('Postprocessing')
-            gb = post_proc(raw,imtype)
-            if twoph:
-                gb[gb==0] = 3
-                gb[gb!=3] = 0
-            tif = np.int_(gb)
-            tifffile.imwrite(pth + str(lbl)+ '.tif', tif)
-            tifs.append(tif)
-            raws.append(raw)
+        fake_labels = fake_labels.repeat(1, 1, lf,lf,lf)
+        print(fake_labels[0,:,0,0,0])
+
+        raw = netG(noise, fake_labels)
+        print('Postprocessing')
+        gb = post_proc(raw,imtype)
+        if twoph:
+            gb[gb==0] = 3
+            gb[gb!=3] = 0
+        tif = np.int_(gb)
+        tifffile.imwrite(pth + str(lbl)+ '.tif', tif)
+        tifs.append(tif)
+        raws.append(raw)
     return tifs, raws, netG
 

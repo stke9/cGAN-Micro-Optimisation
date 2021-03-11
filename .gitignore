@@ -4,3 +4,8 @@ tau_old/
 taufactor/
 training_data/
 trained_generators/
+/img_plot.py
+/3Dplot.py
+/optimisers.pickle
+/optimisers0.pickle
+/test.tif
